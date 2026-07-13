@@ -2788,6 +2788,48 @@ function testFirebase() {
     .then(function(){ alert("✅ Firebase يعمل! الاتصال بقاعدة البيانات ناجح."); })
     .catch(function(err){ alert("⚠️ خطأ في الاتصال: " + err.message); });
 }
+
+// ═══ طبقة العملاء عبر Firestore (السرّية الحقيقية) ═══
+// حفظ عميل في Firestore مع مالكه (repUid). القواعد تمنع غير المالك.
+function fbSaveClient(c) {
+  if (!FB_READY || !FB_AUTH.currentUser || !c) return;
+  try {
+    var uid = FB_AUTH.currentUser.uid;
+    var clean = JSON.parse(JSON.stringify(c));
+    delete clean.formDocs; delete clean.docs; // مرفقات ثقيلة تُخزّن منفصلة
+    clean.repUid = clean.repUid || uid;
+    FB_DB.collection("clients").doc(String(c.id)).set(clean)
+      .then(function(){ console.log("\u2705 \u0639\u0645\u064a\u0644 \u0645\u062d\u0641\u0648\u0638 \u0641\u064a Firestore"); })
+      .catch(function(e){ console.log("fbSave err:", e.message); });
+  } catch (e) { console.log("fbSave exc:", e.message); }
+}
+
+// حذف عميل من Firestore
+function fbDeleteClient(id) {
+  if (!FB_READY) return;
+  try { FB_DB.collection("clients").doc(String(id)).delete().catch(function(){}); } catch (e) {}
+}
+
+// تحميل عملاء المستخدم من Firestore — الإدارة ترى الكل، المندوب عملاءه فقط
+function fbLoadClients(cb) {
+  if (!FB_READY || !FB_AUTH.currentUser) { if (cb) cb(false, 0); return; }
+  var uid = FB_AUTH.currentUser.uid;
+  FB_DB.collection("admins").doc(uid).get().then(function(adminDoc) {
+    var isAdm = adminDoc.exists;
+    var q = isAdm ? FB_DB.collection("clients")
+                  : FB_DB.collection("clients").where("repUid", "==", uid);
+    return q.get();
+  }).then(function(snap) {
+    var arr = [];
+    snap.forEach(function(d) { arr.push(d.data()); });
+    CL = arr;
+    try { renderCl(); updBadge(); } catch (e) {}
+    if (cb) cb(true, arr.length);
+  }).catch(function(e) {
+    console.log("fbLoad err:", e.message);
+    if (cb) cb(false, 0);
+  });
+}
 "use strict";
 // ══ LANG ══
 
@@ -3299,6 +3341,12 @@ function loginFirebaseSuccess(fbUser) {
   addA("تسجيل دخول ناجح (Firebase)", CU.name + " | " + ((RM[CU.role]||{}).ar || CU.role), "login");
   showLoginErr("");
   enterApp();
+  // تحميل العملاء من Firestore (الإدارة الكل، المندوب عملاءه فقط)
+  setTimeout(function(){
+    fbLoadClients(function(ok, n){
+      if (ok) { try { toast("\u2601\ufe0f \u062a\u0645 \u062a\u062d\u0645\u064a\u0644 " + n + " \u0639\u0645\u064a\u0644 (\u0633\u0631\u0651\u064a)", "s"); } catch(e){} }
+    });
+  }, 900);
 }
 
 function doLocalLogin() {
@@ -4933,6 +4981,11 @@ function saveClient() {
     F_DOCS_DATA = {};
   }
   closeM("addClM"); renderCl(); updBadge();
+  // حفظ في Firestore للمستخدمين عبر Firebase (السرّية)
+  if (FB_READY && CU && CU._fbAuth && savedId) {
+    var savedC = CL.find(function(x){ return x.id === savedId; });
+    if (savedC) fbSaveClient(savedC);
+  }
   autoSyncIfConfigured();
 }
 function delCl(id) {
@@ -4941,6 +4994,7 @@ function delCl(id) {
   if (!window.confirm("حذف ملف العميل نهائياً؟")) return;
   CL = CL.filter(function(x){ return x.id!==id; });
   sCl(CL); addA("حذف عميل","العميل: "+c.name,"client");
+  if (FB_READY && CU && CU._fbAuth) fbDeleteClient(id);
   renderCl(); updBadge(); toast("🗑️ تم الحذف","e");
 }
 function archiveCl(id) {
