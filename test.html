@@ -2754,6 +2754,24 @@ tr:hover td{background:#f8fbff}
 
 <!-- Toast -->
 <div class="TWR" id="twr"></div>
+<div class="OV" id="statsM" onclick="closeOO(event,'statsM')">
+  <div class="MD" style="max-width:920px">
+    <div class="MH">
+      <div><div class="MHT">📈 الإحصائيات الشهرية</div><div class="MHS" id="statsSub">توزيع العملاء بالأرقام والنسب</div></div>
+      <button class="MC" onclick="closeM('statsM')">✕</button>
+    </div>
+    <div class="MB" style="max-height:76vh;overflow:auto">
+      <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-bottom:14px">
+        <label style="font-weight:800;font-size:13px">الفترة:</label>
+        <select id="statsMonth" onchange="renderMonthlyStats()" style="padding:8px;border-radius:8px;border:1px solid var(--brd);background:var(--cardBg,#fff);color:inherit"></select>
+        <select id="statsYear" onchange="renderMonthlyStats()" style="padding:8px;border-radius:8px;border:1px solid var(--brd);background:var(--cardBg,#fff);color:inherit"></select>
+        <button class="BT bt-gh bt-sm" onclick="statsAllTime()">📅 كل الفترات</button>
+        <button class="BT bt-print bt-sm" onclick="printMonthlyStats()">🖨️ طباعة</button>
+      </div>
+      <div id="statsBody"></div>
+    </div>
+  </div>
+</div>
 <script>
 // ═══ طبقة Firebase (اختيارية وآمنة) ═══
 // إن نجح التحميل: FB_READY=true ونستخدم Firebase للدخول والسرّية.
@@ -2801,7 +2819,7 @@ function fbSaveClient(c) {
     delete clean.formDocs; delete clean.docs;
     clean.repUid = clean.repUid || uid;
     FB_DB.collection("clients").doc(String(c.id)).set(clean)
-      .then(function(){ try{toast("\u2601\ufe0f \u062a\u0645 \u062d\u0641\u0638 \u0627\u0644\u0639\u0645\u064a\u0644 \u0641\u064a \u0627\u0644\u0633\u062d\u0627\u0628\u0629 (\u0633\u0631\u0651\u064a)","s");}catch(e){} })
+      .then(function(){ try{toast("\u2705 \u062a\u0645 \u062d\u0641\u0638 \u0627\u0644\u0639\u0645\u064a\u0644 \u0641\u064a \u0627\u0644\u0633\u062d\u0627\u0628\u0629","s");}catch(e){} })
       .catch(function(err){ try{alert("\u26a0\ufe0f \u062e\u0637\u0623 \u062d\u0641\u0638 \u0627\u0644\u0639\u0645\u064a\u0644 \u0641\u064a \u0627\u0644\u0633\u062d\u0627\u0628\u0629:\n" + err.message);}catch(e){} });
   } catch (e) { try{alert("\u26a0\ufe0f \u062e\u0637\u0623: " + e.message);}catch(er){} }
 }
@@ -3321,16 +3339,26 @@ function doLogin() {
 }
 
 // نجاح دخول مندوب عبر Firebase → تجهيز المستخدم الحالي
+// نجاح دخول عبر Firebase → نتحقّق أولاً إن كان مديراً (في مجموعة admins)
 function loginFirebaseSuccess(fbUser) {
+  var uid = fbUser.uid;
+  FB_DB.collection("admins").doc(uid).get()
+    .then(function(adminDoc){ finalizeFbLogin(fbUser, adminDoc.exists); })
+    .catch(function(){ finalizeFbLogin(fbUser, false); });
+}
+
+function finalizeFbLogin(fbUser, isAdmin) {
   US = loadUsers();
   var email = (fbUser.email || "").toLowerCase();
+  var role = isAdmin ? "admin" : "rep";
   var u = US.find(function(x) {
     return (x.email && x.email.toLowerCase() === email) || (x.un && x.un.toLowerCase() === email);
   });
   if (!u) {
-    // حساب Firebase بلا ملف محلي → ننشئ ملف مندوب مبسّط مربوطاً به
-    u = { un: fbUser.email, name: (fbUser.email || "").split("@")[0], email: fbUser.email, role: "rep", status: "active" };
-    US.push(u); sU(US);
+    u = { un: fbUser.email, name: (fbUser.email || "").split("@")[0], email: fbUser.email, role: role, status: "active" };
+    US.push(u);
+  } else {
+    u.role = role; // الدور يتبع Firebase (المصدر الموثوق للصلاحية)
   }
   if (u.status === "frozen")   { showLoginErr("الحساب مجمّد – تواصل مع مدير النظام"); return; }
   if (u.status === "disabled") { showLoginErr("الحساب معطّل"); return; }
@@ -3343,10 +3371,9 @@ function loginFirebaseSuccess(fbUser) {
   addA("تسجيل دخول ناجح (Firebase)", CU.name + " | " + ((RM[CU.role]||{}).ar || CU.role), "login");
   showLoginErr("");
   enterApp();
-  // تحميل العملاء من Firestore (الإدارة الكل، المندوب عملاءه فقط)
   setTimeout(function(){
     fbLoadClients(function(ok, n){
-      if (ok) { try { toast("\u2601\ufe0f \u062a\u0645 \u062a\u062d\u0645\u064a\u0644 " + n + " \u0639\u0645\u064a\u0644 (\u0633\u0631\u0651\u064a)", "s"); } catch(e){} }
+      if (ok) { try { toast("\u2601\ufe0f \u062a\u0645 \u062a\u062d\u0645\u064a\u0644 \u0628\u064a\u0627\u0646\u0627\u062a\u0643", "s"); } catch(e){} }
     });
   }, 900);
 }
@@ -4165,7 +4192,8 @@ function renderCl() {
   var sep1=document.createElement("span"); sep1.style.cssText="width:1px;height:28px;background:var(--brd);display:inline-block;margin:0 4px;vertical-align:middle"; ac.appendChild(sep1);
   var bpdf=document.createElement("button"); bpdf.className="BT bt-print bt-sm"; bpdf.innerHTML="🖨️ PDF"; bpdf.onclick=exportClientsPDF; bpdf.title="تصدير PDF"; ac.appendChild(bpdf);
   var bxl=document.createElement("button"); bxl.className="BT bt-exp-xl bt-sm"; bxl.innerHTML="📊 Excel"; bxl.onclick=exportClientsExcel; bxl.title="تصدير Excel"; ac.appendChild(bxl);
-  document.getElementById("repBar").style.display = CU.role==="rep" ? "block" : "none";
+  var bstat=document.createElement("button"); bstat.className="BT bt-bl bt-sm"; bstat.innerHTML="📈 إحصائيات شهرية"; bstat.onclick=openMonthlyStats; bstat.title="إحصائيات شهرية"; ac.appendChild(bstat);
+  document.getElementById("repBar").style.display = "none";
   // Show approval banner for managers
   var appBanner = document.getElementById("approvalBanner");
   if (!appBanner) {
@@ -4431,7 +4459,7 @@ function openCF(id) {
     ii("تاريخ الإرسال",c.rdate||"–") +
     "</div>" +
     // Pay action button
-    ((can("fin")||can("ap")) && remAmt>0 ?
+    ((can("fin")||can("ap")||CU.role==="rep") && remAmt>0 ?
       "<button class='BT bt-gr' style='width:100%;margin-bottom:14px' onclick='swMT(document.querySelector(\".MT[data-tp=\\\"tp-payments\\\"]\"))'>💳 تسجيل دفعة — المتبقي: "+fmt(remAmt)+"</button>"
       : (remAmt<=0?"<div class='NT nt-gr' style='margin-bottom:14px'>✅ الحساب مُسدَّد بالكامل</div>":"")) +
     "<div style='margin:10px 0 4px;font-size:11px;font-weight:700;color:var(--sub)'>مؤشر التحصيل</div>" +
@@ -8026,6 +8054,7 @@ function showSyncSummary(type, total, newCount, time) {
 
 // مزامنة تلقائية عند حفظ عميل جديد
 function autoSyncIfConfigured() {
+  if (CU && CU._fbAuth) { return; } // مستخدمو Firebase: Firestore فقط
   var cfg = loadGsCfg();
   if (cfg.url && cfg.key) {
     setTimeout(function(){ syncToSheets(); }, 1500);
@@ -8183,6 +8212,96 @@ function exportData() {
 function openM(id){ document.getElementById(id).classList.add("on"); }
 function closeM(id){ document.getElementById(id).classList.remove("on"); }
 function closeOO(e,id){ if(e.target.id===id)closeM(id); }
+
+// ══ الإحصائيات الشهرية ══
+var STATS_MONTHS = ["يناير","فبراير","مارس","أبريل","مايو","يونيو","يوليو","أغسطس","سبتمبر","أكتوبر","نوفمبر","ديسمبر"];
+function statsDataAll() {
+  return (typeof CL !== "undefined" && CL) ? CL.filter(function(c){ return c && !c.archived; }) : [];
+}
+function openMonthlyStats() {
+  var now = new Date();
+  var ySel = document.getElementById("statsYear");
+  var mSel = document.getElementById("statsMonth");
+  var years = {}; years[String(now.getFullYear())] = 1;
+  statsDataAll().forEach(function(c){ var y=(c.createdAt||"").slice(0,4); if(/^\d{4}$/.test(y)) years[y]=1; });
+  var yl = Object.keys(years).sort().reverse();
+  ySel.innerHTML = yl.map(function(y){ return "<option value='"+y+"'>"+y+"</option>"; }).join("");
+  mSel.innerHTML = STATS_MONTHS.map(function(m,i){ return "<option value='"+(i+1)+"'>"+m+"</option>"; }).join("");
+  ySel.value = String(now.getFullYear());
+  mSel.value = String(now.getMonth()+1);
+  window._statsAll = false;
+  openM("statsM");
+  renderMonthlyStats();
+}
+function statsAllTime() { window._statsAll = true; renderMonthlyStats(); }
+function statsBar(label, count, sum, pct, color) {
+  return "<div style='margin-bottom:8px'>"
+    + "<div style='display:flex;justify-content:space-between;font-size:12px;font-weight:700;margin-bottom:3px'>"
+    + "<span>"+label+"</span><span>"+count+" ("+pct+"%) · "+fmtN(sum)+" ر.س</span></div>"
+    + "<div style='background:var(--brd,#eee);border-radius:6px;height:9px;overflow:hidden'>"
+    + "<div style='width:"+pct+"%;height:100%;background:"+(color||"#1565c0")+"'></div></div></div>";
+}
+function statsGroup(title, map, total, color) {
+  var keys = Object.keys(map).sort(function(a,b){ return map[b].count - map[a].count; });
+  if (!keys.length) return "";
+  var rows = keys.map(function(k){
+    var o = map[k];
+    var pct = total ? Math.round(o.count/total*100) : 0;
+    return statsBar(k, o.count, o.sum, pct, color);
+  }).join("");
+  return "<div style='background:var(--cardBg,#fff);border:1px solid var(--brd);border-radius:12px;padding:14px;margin-bottom:14px'>"
+    + "<div style='font-weight:800;font-size:14px;margin-bottom:10px'>"+title+"</div>" + rows + "</div>";
+}
+function statCard(label, val, color) {
+  return "<div style='background:var(--cardBg,#fff);border:1px solid var(--brd);border-radius:12px;padding:14px;text-align:center'>"
+    + "<div style='font-size:12px;color:var(--mut,#777);margin-bottom:5px'>"+label+"</div>"
+    + "<div style='font-size:20px;font-weight:900;color:"+color+"'>"+val+"</div></div>";
+}
+function renderMonthlyStats() {
+  var body = document.getElementById("statsBody"); if (!body) return;
+  var all = statsDataAll();
+  var data, periodLabel;
+  if (window._statsAll) { data = all; periodLabel = "كل الفترات"; }
+  else {
+    var y = document.getElementById("statsYear").value;
+    var m = parseInt(document.getElementById("statsMonth").value,10);
+    var mm = (m<10?"0":"")+m;
+    data = all.filter(function(c){ return (c.createdAt||"").slice(0,7) === (y+"-"+mm); });
+    periodLabel = STATS_MONTHS[m-1] + " " + y;
+  }
+  document.getElementById("statsSub").textContent = periodLabel + " — " + (CU && CU.role==="rep" ? "عملاؤك" : "كل العملاء");
+  var total = data.length;
+  var totalSum = data.reduce(function(s,c){ return s + (parseFloat(c.val)||0); }, 0);
+  if (!total) {
+    body.innerHTML = "<div class='NT nt-b' style='text-align:center;padding:30px'>لا توجد بيانات لهذه الفترة ("+periodLabel+")</div>";
+    return;
+  }
+  var byRep={}, byCity={}, byDist={}, byItype={}, byKind={};
+  data.forEach(function(c){
+    var v = parseFloat(c.val)||0;
+    function add(map,key){ key=(key||"غير محدد"); if(!map[key])map[key]={count:0,sum:0}; map[key].count++; map[key].sum+=v; }
+    add(byRep, c.rep); add(byCity, c.city); add(byDist, c.district);
+    add(byItype, c.itype); add(byKind, c.type==="corp"?"شركات":(c.type==="ind"?"أفراد":"غير محدد"));
+  });
+  var avg = total ? Math.round(totalSum/total) : 0;
+  var summary = "<div style='display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px;margin-bottom:16px'>"
+    + statCard("👥 عدد العملاء", total, "#1565c0")
+    + statCard("💰 إجمالي العقود", fmtN(totalSum)+" ر.س", "#0e8c4a")
+    + statCard("📊 متوسط العقد", fmtN(avg)+" ر.س", "#8a5cf6") + "</div>";
+  body.innerHTML = summary
+    + statsGroup("👤 حسب المندوب", byRep, total, "#1565c0")
+    + statsGroup("🏢 شركات مقابل أفراد", byKind, total, "#0e8c4a")
+    + statsGroup("🏙️ حسب المدن", byCity, total, "#e08600")
+    + statsGroup("📍 حسب الأحياء", byDist, total, "#c0392b")
+    + statsGroup("🔍 حسب نوع الفحص", byItype, total, "#8a5cf6");
+}
+function printMonthlyStats() {
+  var w = window.open("", "_blank"); if(!w) return;
+  var sub = document.getElementById("statsSub").textContent;
+  w.document.write("<html dir='rtl'><head><meta charset='utf-8'><title>إحصائيات</title></head><body style='font-family:sans-serif;padding:20px'><h2>📈 الإحصائيات الشهرية</h2><p>"+sub+"</p>"+document.getElementById("statsBody").innerHTML+"</body></html>");
+  w.document.close(); w.print();
+}
+
 
 // ══ PAYMENT SYSTEM ══
 function loadPayments(cid) {
@@ -9381,8 +9500,8 @@ function renderPayTab(c) {
       "</div>" +
     "</div>";
 
-  // Add payment button (for finance/admin/salesmgr)
-  if (can("fin") || can("ap")) {
+  // Add payment button (for finance/admin/salesmgr/rep)
+  if (can("fin") || can("ap") || CU.role==="rep") {
     html += rem > 0
       ? "<button class='BT bt-gr' style='margin-bottom:10px;width:100%' onclick='openAddPay(\""+c.id+"\")'>💳 تسجيل دفعة جديدة — المتبقي: "+fmtN(rem)+" ر.س</button>"
       : "<div class='NT nt-gr' style='margin-bottom:10px'>✅ تم سداد الحساب بالكامل</div>";
@@ -12436,6 +12555,8 @@ function autoPullClients() {
   document.head.appendChild(sc);
 }
 function autoSyncTick() {
+  // مستخدمو Firebase: البيانات في Firestore فقط — لا مزامنة Sheets (تمنع رجوع المحذوف وتحمي الخصوصية)
+  if (CU && CU._fbAuth) { return; }
   var cfg = loadGsCfg();
   if (!cfg.url || !CU) return;
   var _cls = CL.filter(function(c){ return !c.archived; });
