@@ -2830,6 +2830,34 @@ function fbSaveClient(c) {
 }
 
 // حذف عميل من Firestore
+function fbLogDeletion(c){
+  if(!FB_READY||!FB_AUTH.currentUser||!c) return;
+  try{
+    FB_DB.collection('alerts').add({
+      kind:'delete', clientName:c.name||'', clientId:String(c.id||''),
+      by:(typeof CU!=='undefined'&&CU&&CU.name)||FB_AUTH.currentUser.email||'', byUid:FB_AUTH.currentUser.uid,
+      at:new Date().toISOString()
+    }).catch(function(){});
+  }catch(e){}
+}
+function fbLoadAlerts(){
+  if(!FB_READY||!FB_AUTH.currentUser) return;
+  try{
+    FB_DB.collection('alerts').orderBy('at','desc').limit(15).get().then(function(snap){
+      var seen = parseInt(localStorage.getItem('irx_alerts_seen')||'0',10);
+      var arr=[]; snap.forEach(function(d){ arr.push(d.data()); });
+      var latest = arr.length ? new Date(arr[0].at).getTime() : 0;
+      var fresh = arr.filter(function(a){ return new Date(a.at).getTime() > seen; });
+      if(fresh.length){
+        try{ toast('⚠️ '+fresh.length+' تنبيه حذف من المندوبين','e'); }catch(e){}
+        fresh.slice(0,5).forEach(function(a,i){
+          setTimeout(function(){ try{ toast('⚠️ '+(a.by||'')+' حذف: '+(a.clientName||''),'e'); }catch(e){} }, 1200*(i+1));
+        });
+      }
+      localStorage.setItem('irx_alerts_seen', String(latest));
+    }).catch(function(){});
+  }catch(e){}
+}
 function fbDeleteClient(id) {
   if (!FB_READY) return;
   try { FB_DB.collection("clients").doc(String(id)).delete().catch(function(){}); } catch (e) {}
@@ -2941,7 +2969,7 @@ var PM = {
   // salesmgr — العملاء + التقارير + الفحص والاعتماد فقط
   salesmgr: { va:1, ap:1, del:0, add:0, fin:0, usr:0, aud:0, rpt:1, bak:0, arc:0, insp:1 },
   // rep — عملاءه فقط + إضافة/تعديل + أرشفة (بدل الحذف) + إصدار فاتورة/سند/دفعة/مرتجع + عمولته
-  rep:      { va:1, ap:0, del:0, add:1, fin:0, usr:0, aud:0, rpt:0, bak:0, arc:1, insp:0 },
+  rep:      { va:1, ap:0, del:1, add:1, fin:0, usr:0, aud:0, rpt:0, bak:0, arc:1, insp:0 },
   // eng — مهندس فحص: يرى كل العملاء، يُنهي مراحل الفحص ويعتمد تقارير الفحص لأي عميل
   eng:      { va:1, ap:1, del:0, add:0, fin:0, usr:0, aud:0, rpt:0, bak:0, arc:0, insp:1 }
 };
@@ -3091,6 +3119,10 @@ function sU(u) { lsSet("irx_u", u); }
 function loadClients() {
   var d = lsGet("irx_c4");
   if (d) return d;
+  return []; // بداية نظيفة — بلا عملاء تجريبيين (المحذوف لا يرجع)
+}
+function _loadClients_demo_unused() {
+  var d = null;
   var now = new Date().toISOString();
   d = [
     { id:"INX-20260101-1001", type:"ind", status:"approved", category:"VIP",
@@ -3382,6 +3414,7 @@ function finalizeFbLogin(fbUser, isAdmin) {
     fbLoadClients(function(ok, n){
       if (ok) { try { toast("\u2601\ufe0f \u062a\u0645 \u062a\u062d\u0645\u064a\u0644 \u0628\u064a\u0627\u0646\u0627\u062a\u0643", "s"); } catch(e){} }
     });
+    if (isAdmin) { fbLoadAlerts(); }
   }, 900);
 }
 
@@ -5025,7 +5058,7 @@ function delCl(id) {
   if (!window.confirm("حذف ملف العميل نهائياً؟")) return;
   CL = CL.filter(function(x){ return x.id!==id; });
   sCl(CL); addA("حذف عميل","العميل: "+c.name,"client");
-  if (FB_READY && CU && CU._fbAuth) fbDeleteClient(id);
+  if (FB_READY && CU && CU._fbAuth) { fbDeleteClient(id); fbLogDeletion(c); }
   renderCl(); updBadge(); toast("🗑️ تم الحذف","e");
 }
 function archiveCl(id) {
@@ -8975,7 +9008,7 @@ function printTaxInvoice(cid, c, c2, paid, pst, isDeferred) {
       "<tr><td class='lbl'>العنوان / Address</td><td colspan='3'>"+(c.addr||c.city||"—")+"</td></tr>" +
     "</table></div>" +
     "<div class='pgrid-wrap'><table class='pg' id='invItems'>" +
-      "<thead><tr><th style='width:46px;text-align:center'>"+(isEn?"No.":"رقم")+" <span class='addx' onclick='addInvRow()' title='إضافة صنف'>➕</span></th><th style='width:205px'>"+(isEn?"Item":"اسم الصنف")+"</th><th>"+(isEn?"Description":"البيان")+"</th><th style='width:44px;text-align:center'>"+(isEn?"Qty":"الكمية")+"</th><th style='width:88px;text-align:right'>"+(isEn?"Price":"السعر")+"</th><th class='vatcol' style='width:82px;text-align:right'>"+(isEn?"VAT 15%":"ضريبة 15%")+"</th><th style='width:95px;text-align:right'>"+(isEn?"Total":"الإجمالي")+"</th></tr></thead>" +
+      "<thead><tr><th style='width:38px;text-align:center'>"+(isEn?"No.":"رقم")+" <span class='addx' onclick='addInvRow()' title='إضافة صنف'>➕</span></th><th style='width:130px'>"+(isEn?"Item":"اسم الصنف")+"</th><th>"+(isEn?"Description":"البيان")+"</th><th style='width:36px;text-align:center'>"+(isEn?"Qty":"الكمية")+"</th><th style='width:76px;text-align:right'>"+(isEn?"Price":"السعر")+"</th><th class='vatcol' style='width:70px;text-align:right'>"+(isEn?"VAT 15%":"ضريبة 15%")+"</th><th style='width:82px;text-align:right'>"+(isEn?"Total":"الإجمالي")+"</th></tr></thead>" +
       "<tbody>"+itemsRows+"</tbody>" +
     "</table></div>" +
     "<div style='display:flex;gap:12px;align-items:stretch;margin:14px 0 4px'>" +
@@ -9000,7 +9033,7 @@ function printTaxInvoice(cid, c, c2, paid, pst, isDeferred) {
       "<div><div class='ln'></div>"+coName(info)+"<br><span style='font-size:9px;color:#8a7a4a'>"+(isEn?"Authorized Signatory":"\u0627\u0644\u0645\u0641\u0648\u0651\u0636 \u0628\u0627\u0644\u062a\u0648\u0642\u064a\u0639")+"</span></div>" +
       "<div><div class='ln'></div>"+(isEn?"Company Stamp":"\u062e\u062a\u0645 \u0627\u0644\u0634\u0631\u0643\u0629")+"</div>" +
     "</div>" +
-    "<script>var CUR='"+cur+"';window.INV_TYPES="+JSON.stringify(loadInspTypes())+";window.INV_DESC="+JSON.stringify((function(){var m={};loadInspTypes().forEach(function(t){m[t]=getInspectionDesc(t);});return m;})())+";var _NET="+c2.net+",_VAT="+c2.vat+",_DISC=0,_PAID="+paid+";var VS_W='"+(isEn?'(incl. VAT)':'(شامل الضريبة)')+"',VS_N='"+(isEn?'(excl. VAT)':'(غير شامل الضريبة)')+"';var PT_CASH='"+(isEn?'CASH':'نقدية')+"',PT_CREDIT='"+(isEn?'CREDIT':'آجلة')+"';var _doc='final',_vat='with',_pay='"+(rem>0?'credit':'cash')+"';var ZN="+JSON.stringify(coName(info))+",ZV='"+(info.vat||'')+"',ZT='"+(c.createdAt||new Date().toISOString())+"';function fmtx(n){n=parseFloat(n)||0;return n.toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2});}function _st(id,v){var el=document.getElementById(id);if(el)el.textContent=fmtx(v);}function ztlv(t,v){v=String(v);var b=unescape(encodeURIComponent(v));return String.fromCharCode(t)+String.fromCharCode(b.length)+b;}function zpay(tot,vat){try{return btoa(ztlv(1,ZN)+ztlv(2,ZV)+ztlv(3,ZT)+ztlv(4,(parseFloat(tot)||0).toFixed(2))+ztlv(5,(parseFloat(vat)||0).toFixed(2)));}catch(e){return '';}}function _cl(id,on){var el=document.getElementById(id);if(el)el.className=on?'chk on':'chk';}function num(el){if(!el)return 0;return parseFloat((el.textContent||'').replace(/[^0-9.]/g,''))||0;}function addInvRow(){var tb=document.querySelector('#invItems tbody');if(!tb)return;var tr=document.createElement('tr');tr.className='itemrow';var td0=document.createElement('td');td0.className='rn';td0.style.textAlign='center';var s1=document.createElement('span');s1.className='rnum';var s2=document.createElement('span');s2.className='delx';s2.textContent='✕';s2.setAttribute('onclick','delRow(this)');td0.appendChild(s1);td0.appendChild(document.createTextNode(' '));td0.appendChild(s2);tr.appendChild(td0);var td1=document.createElement('td');var sel=document.createElement('select');sel.style.cssText='width:100%;min-width:170px;border:1px solid #d8d0b8;border-radius:6px;padding:7px 8px;font-size:12.5px;font-weight:600;background:#fff;-webkit-appearance:none;-moz-appearance:none;appearance:none;text-align:right';var o0=document.createElement('option');o0.value='';o0.textContent='- اختر صنف الفحص -';sel.appendChild(o0);(window.INV_TYPES||[]).forEach(function(t){var o=document.createElement('option');o.value=t;o.textContent=t;sel.appendChild(o);});td1.appendChild(sel);tr.appendChild(td1);var td2=document.createElement('td');td2.setAttribute('contenteditable','true');td2.style.textAlign='right';tr.appendChild(td2);var td3=document.createElement('td');td3.className='qcell';td3.setAttribute('contenteditable','true');td3.setAttribute('oninput','recalcRows()');td3.style.textAlign='center';td3.textContent='1';tr.appendChild(td3);var td4=document.createElement('td');td4.className='pcell';td4.setAttribute('contenteditable','true');td4.setAttribute('oninput','recalcRows()');td4.style.textAlign='right';td4.style.direction='ltr';td4.textContent='0';tr.appendChild(td4);var td5=document.createElement('td');td5.className='vcell vatcol';td5.style.textAlign='right';td5.style.direction='ltr';td5.textContent='0.00';tr.appendChild(td5);var td6=document.createElement('td');td6.className='tcell';td6.style.textAlign='right';td6.style.direction='ltr';td6.textContent='0.00';tr.appendChild(td6);sel.addEventListener('change',function(){td2.textContent=(window.INV_DESC&&window.INV_DESC[sel.value])||'';recalcRows();});tb.appendChild(tr);recalcRows();}function delRow(el){var tr=el.closest('tr');if(document.querySelectorAll('.itemrow').length>1){tr.parentNode.removeChild(tr);recalcRows();}}function recalcRows(){var wv=(_vat==='with');var sn=0;document.querySelectorAll('.itemrow').forEach(function(r,i){var rn=r.querySelector('.rnum');if(rn)rn.textContent=String(i+1);var q=num(r.querySelector('.qcell')),pr=num(r.querySelector('.pcell'));var net=Math.round(q*pr*100)/100,vat=Math.round(net*0.15*100)/100;var vc=r.querySelector('.vcell');if(vc)vc.textContent=fmtx(vat);var tc=r.querySelector('.tcell');if(tc)tc.textContent=fmtx(net+(wv?vat:0));sn+=net;});_NET=Math.round(sn*100)/100;_VAT=Math.round(sn*0.15*100)/100;updateTotals();}function updateTotals(){var wv=(_vat==='with'),df=(_doc==='draft');var dEl=document.getElementById('sDisc');_DISC=dEl?num(dEl):0;if(_DISC>_NET)_DISC=_NET;var taxable=Math.round((_NET-_DISC)*100)/100;var vat=wv?Math.round(taxable*0.15*100)/100:0;var tot=Math.round((taxable+vat)*100)/100;var paid=(_pay==='cash')?tot:_PAID;var rem=Math.max(Math.round((tot-paid)*100)/100,0);document.querySelectorAll('.vatcol,.vatrow').forEach(function(x){x.style.display=wv?'':'none';});_st('sNet',_NET);_st('sVat',vat);_st('sTot',tot);_st('sPaid',paid);_st('sRem',rem);var dp=document.getElementById('sDiscPct');if(dp)dp.textContent='('+(_NET>0?Math.round(_DISC/_NET*100):0)+'%)';var pct=tot>0?Math.round(paid/tot*100):0;var pp=document.getElementById('payPct');if(pp)pp.textContent=pct+'%';var rp=document.getElementById('remPct');if(rp)rp.textContent=(100-pct)+'%';var pf=document.getElementById('pctFill');if(pf)pf.style.width=pct+'%';var pw=document.getElementById('pctWrap');if(pw)pw.style.display=rem>0?'block':'none';var ptl=document.getElementById('payTypeLbl');if(ptl)ptl.textContent=(_pay==='cash')?PT_CASH:PT_CREDIT;var vs=document.getElementById('vatSuffix');if(vs)vs.textContent=wv?VS_W:VS_N;var dc=document.getElementById('docTypeLbl');if(dc)dc.textContent=df?dc.dataset.d:dc.dataset.f;var dn=document.getElementById('draftNotice');if(dn)dn.style.display=df?'block':'none';var qw=document.getElementById('qrWrap');if(qw)qw.style.display=df?'none':'flex';_cl('chkOfficial',!df);_cl('chkVat',wv);_cl('chkCash',_pay==='cash');if(!df){var q0=document.getElementById('pQR');if(q0){var nz=zpay(tot,vat);if(q0.dataset.z!==nz){q0.dataset.z=nz;q0.dataset.done='';q0.innerHTML='';}}genQR();}}function genQR(a){a=a||0;var q=document.getElementById('pQR');if(!q||!q.dataset.z||q.dataset.done)return;if(typeof QRCode==='undefined'||!window.QRCode){if(a<50)setTimeout(function(){genQR(a+1);},150);return;}try{q.innerHTML='';new QRCode(q,{text:q.dataset.z,width:96,height:96,correctLevel:QRCode.CorrectLevel.M});q.dataset.done='1';}catch(e){}}function tglDoc(){_doc=(_doc==='final')?'draft':'final';updateTotals();}function tglVat(){_vat=(_vat==='with')?'without':'with';recalcRows();}function tglCash(){_pay=(_pay==='cash')?'credit':'cash';updateTotals();}setTimeout(function(){recalcRows();genQR();},300);window.addEventListener('load',function(){genQR();});</scr" + "ipt>" +
+    "<script>var CUR='"+cur+"';window.INV_TYPES="+JSON.stringify(loadInspTypes())+";window.INV_DESC="+JSON.stringify((function(){var m={};loadInspTypes().forEach(function(t){m[t]=getInspectionDesc(t);});return m;})())+";var _NET="+c2.net+",_VAT="+c2.vat+",_DISC=0,_PAID="+paid+";var VS_W='"+(isEn?'(incl. VAT)':'(شامل الضريبة)')+"',VS_N='"+(isEn?'(excl. VAT)':'(غير شامل الضريبة)')+"';var PT_CASH='"+(isEn?'CASH':'نقدية')+"',PT_CREDIT='"+(isEn?'CREDIT':'آجلة')+"';var _doc='final',_vat='with',_pay='"+(rem>0?'credit':'cash')+"';var ZN="+JSON.stringify(coName(info))+",ZV='"+(info.vat||'')+"',ZT='"+(c.createdAt||new Date().toISOString())+"';function fmtx(n){n=parseFloat(n)||0;return n.toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2});}function _st(id,v){var el=document.getElementById(id);if(el)el.textContent=fmtx(v);}function ztlv(t,v){v=String(v);var b=unescape(encodeURIComponent(v));return String.fromCharCode(t)+String.fromCharCode(b.length)+b;}function zpay(tot,vat){try{return btoa(ztlv(1,ZN)+ztlv(2,ZV)+ztlv(3,ZT)+ztlv(4,(parseFloat(tot)||0).toFixed(2))+ztlv(5,(parseFloat(vat)||0).toFixed(2)));}catch(e){return '';}}function _cl(id,on){var el=document.getElementById(id);if(el)el.className=on?'chk on':'chk';}function num(el){if(!el)return 0;return parseFloat((el.textContent||'').replace(/[^0-9.]/g,''))||0;}function addInvRow(){var tb=document.querySelector('#invItems tbody');if(!tb)return;var tr=document.createElement('tr');tr.className='itemrow';var td0=document.createElement('td');td0.className='rn';td0.style.textAlign='center';var s1=document.createElement('span');s1.className='rnum';var s2=document.createElement('span');s2.className='delx';s2.textContent='✕';s2.setAttribute('onclick','delRow(this)');td0.appendChild(s1);td0.appendChild(document.createTextNode(' '));td0.appendChild(s2);tr.appendChild(td0);var td1=document.createElement('td');var sel=document.createElement('select');sel.style.cssText='width:100%;min-width:0;max-width:100%;border:1px solid #d8d0b8;border-radius:6px;padding:6px 6px;font-size:11px;font-weight:600;background:#fff;-webkit-appearance:none;-moz-appearance:none;appearance:none;text-align:right;overflow:hidden;text-overflow:ellipsis';var o0=document.createElement('option');o0.value='';o0.textContent='- اختر صنف الفحص -';sel.appendChild(o0);(window.INV_TYPES||[]).forEach(function(t){var o=document.createElement('option');o.value=t;o.textContent=t;sel.appendChild(o);});td1.appendChild(sel);tr.appendChild(td1);var td2=document.createElement('td');td2.setAttribute('contenteditable','true');td2.style.textAlign='right';tr.appendChild(td2);var td3=document.createElement('td');td3.className='qcell';td3.setAttribute('contenteditable','true');td3.setAttribute('oninput','recalcRows()');td3.style.textAlign='center';td3.textContent='1';tr.appendChild(td3);var td4=document.createElement('td');td4.className='pcell';td4.setAttribute('contenteditable','true');td4.setAttribute('oninput','recalcRows()');td4.style.textAlign='right';td4.style.direction='ltr';td4.textContent='0';tr.appendChild(td4);var td5=document.createElement('td');td5.className='vcell vatcol';td5.style.textAlign='right';td5.style.direction='ltr';td5.textContent='0.00';tr.appendChild(td5);var td6=document.createElement('td');td6.className='tcell';td6.style.textAlign='right';td6.style.direction='ltr';td6.textContent='0.00';tr.appendChild(td6);sel.addEventListener('change',function(){td2.textContent=(window.INV_DESC&&window.INV_DESC[sel.value])||'';recalcRows();});tb.appendChild(tr);recalcRows();}function delRow(el){var tr=el.closest('tr');if(document.querySelectorAll('.itemrow').length>1){tr.parentNode.removeChild(tr);recalcRows();}}function recalcRows(){var wv=(_vat==='with');var sn=0;document.querySelectorAll('.itemrow').forEach(function(r,i){var rn=r.querySelector('.rnum');if(rn)rn.textContent=String(i+1);var q=num(r.querySelector('.qcell')),pr=num(r.querySelector('.pcell'));var net=Math.round(q*pr*100)/100,vat=Math.round(net*0.15*100)/100;var vc=r.querySelector('.vcell');if(vc)vc.textContent=fmtx(vat);var tc=r.querySelector('.tcell');if(tc)tc.textContent=fmtx(net+(wv?vat:0));sn+=net;});_NET=Math.round(sn*100)/100;_VAT=Math.round(sn*0.15*100)/100;updateTotals();}function updateTotals(){var wv=(_vat==='with'),df=(_doc==='draft');var dEl=document.getElementById('sDisc');_DISC=dEl?num(dEl):0;if(_DISC>_NET)_DISC=_NET;var taxable=Math.round((_NET-_DISC)*100)/100;var vat=wv?Math.round(taxable*0.15*100)/100:0;var tot=Math.round((taxable+vat)*100)/100;var paid=(_pay==='cash')?tot:_PAID;var rem=Math.max(Math.round((tot-paid)*100)/100,0);document.querySelectorAll('.vatcol,.vatrow').forEach(function(x){x.style.display=wv?'':'none';});_st('sNet',_NET);_st('sVat',vat);_st('sTot',tot);_st('sPaid',paid);_st('sRem',rem);var dp=document.getElementById('sDiscPct');if(dp)dp.textContent='('+(_NET>0?Math.round(_DISC/_NET*100):0)+'%)';var pct=tot>0?Math.round(paid/tot*100):0;var pp=document.getElementById('payPct');if(pp)pp.textContent=pct+'%';var rp=document.getElementById('remPct');if(rp)rp.textContent=(100-pct)+'%';var pf=document.getElementById('pctFill');if(pf)pf.style.width=pct+'%';var pw=document.getElementById('pctWrap');if(pw)pw.style.display=rem>0?'block':'none';var ptl=document.getElementById('payTypeLbl');if(ptl)ptl.textContent=(_pay==='cash')?PT_CASH:PT_CREDIT;var vs=document.getElementById('vatSuffix');if(vs)vs.textContent=wv?VS_W:VS_N;var dc=document.getElementById('docTypeLbl');if(dc)dc.textContent=df?dc.dataset.d:dc.dataset.f;var dn=document.getElementById('draftNotice');if(dn)dn.style.display=df?'block':'none';var qw=document.getElementById('qrWrap');if(qw)qw.style.display=df?'none':'flex';_cl('chkOfficial',!df);_cl('chkVat',wv);_cl('chkCash',_pay==='cash');if(!df){var q0=document.getElementById('pQR');if(q0){var nz=zpay(tot,vat);if(q0.dataset.z!==nz){q0.dataset.z=nz;q0.dataset.done='';q0.innerHTML='';}}genQR();}}function genQR(a){a=a||0;var q=document.getElementById('pQR');if(!q||!q.dataset.z||q.dataset.done)return;if(typeof QRCode==='undefined'||!window.QRCode){if(a<50)setTimeout(function(){genQR(a+1);},150);return;}try{q.innerHTML='';new QRCode(q,{text:q.dataset.z,width:96,height:96,correctLevel:QRCode.CorrectLevel.M});q.dataset.done='1';}catch(e){}}function tglDoc(){_doc=(_doc==='final')?'draft':'final';updateTotals();}function tglVat(){_vat=(_vat==='with')?'without':'with';recalcRows();}function tglCash(){_pay=(_pay==='cash')?'credit':'cash';updateTotals();}setTimeout(function(){recalcRows();genQR();},300);window.addEventListener('load',function(){genQR();});</scr" + "ipt>" +
     premiumFoot(info,{ stamp:(isEn?"Certified Invoice":"\u0641\u0627\u062a\u0648\u0631\u0629 \u0645\u0648\u062b\u0651\u0642\u0629"), noAutoPrint:true });
 
   openPrintDoc(html);
@@ -9042,7 +9075,7 @@ function premiumCSS() {
   ".pgrid-wrap{border:1px solid #e6e2d6;border-radius:10px;overflow:hidden;margin-bottom:12px}" +
   "table.pg{width:100%;border-collapse:collapse;font-size:11.5px}" +
   "table.pg th{background:#0b1a2e;color:#e6c65c;padding:9px 12px;text-align:right;font-size:10.5px;font-weight:700}" +
-  "table.pg td{padding:9px 12px;border-bottom:1px solid #f0ede3;vertical-align:top}" +
+  "table.pg td{padding:9px 12px;border-bottom:1px solid #f0ede3;vertical-align:top;line-height:1.65}" +
   "table.pg tbody tr:nth-child(even){background:#faf9f4}" +
   "table.pg tr:last-child td{border-bottom:none}" +
   ".pg .lbl{font-weight:700;background:#faf9f4;color:#5a5240;width:26%}" +
