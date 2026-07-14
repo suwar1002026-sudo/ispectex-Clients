@@ -2094,7 +2094,7 @@ tr:hover td{background:#f8fbff}
           <div class="FL"><label>اسم العميل <span class="rq">*</span></label><input type="text" class="FI" id="f-nm"></div>
           <div class="FL" id="fIdRow"><label id="fIdLb">رقم الهوية الوطنية <span style="font-size:10px;color:var(--sub);font-weight:400">(اختياري)</span></label><input type="text" class="FI" id="f-id" maxlength="10" placeholder="10 أرقام – اختياري"></div>
           <div class="FL corp-f" id="fCrRow" style="display:none"><label>السجل التجاري <span class="rq">*</span></label><input type="text" class="FI" id="f-cr"></div>
-          <div class="FL corp-f" id="fVnRow" style="display:none"><label>الرقم الضريبي (VAT) <span class="rq">*</span></label><input type="text" class="FI" id="f-vn" placeholder="15 رقماً"></div>
+          <div class="FL" id="fVnRow"><label>الرقم الضريبي للعميل (VAT) <span style="font-size:10px;color:#8a94a6">— اختياري</span></label><input type="text" class="FI" id="f-vn" placeholder="15 رقماً (إن وُجد)" style="direction:ltr;text-align:left"></div>
           <div class="FL"><label>رقم الجوال <span class="rq">*</span></label><input type="text" class="FI" id="f-ph" placeholder="+966 5X XXX XXXX" oninput="checkDupPhone(this.value)"><div id="dup-ph-warn" style="display:none;font-size:10px;color:#d32f2f;margin-top:3px;font-weight:700"></div></div>
           <div class="FL"><label>البريد الإلكتروني <span style="font-size:10px;color:var(--sub);font-weight:400">(اختياري)</span></label><input type="email" class="FI" id="f-em" style="direction:ltr;text-align:left" placeholder="اختياري"></div>
           <div class="FL" id="f-country-row">
@@ -4381,11 +4381,9 @@ function openCF(id) {
       "<div style='height:10px;border-radius:6px;background:#e8eaf0;overflow:hidden;margin-bottom:8px'>" +
         "<div style='height:100%;border-radius:6px;width:"+paidPct+"%;background:"+barColor+";transition:.6s'></div>" +
       "</div>" +
-      // أزرار الإجراءات
+      // أزرار الإجراءات — كل الفواتير والسندات وكشف الحساب في تبويب الدفعات (بلا تكرار)
       "<div style='display:flex;gap:6px;flex-wrap:wrap;align-items:center'>" +
-        "<button class='BT bt-bl bt-sm' style='flex:1' onclick='printInvoice(\""+id+"\")'>🧾 الفاتورة (مبدئية / معتمدة)</button>" +
-        "<button class='BT bt-gh bt-sm' style='flex:1' onclick='printStatement(\""+id+"\")'>📊 كشف الحساب</button>" +
-        (remaining>0 ? "<button class='BT bt-gr bt-sm' style='flex:1' onclick='swMT(document.querySelector(\".MT[data-tp=\\\"tp-payments\\\"]\"))'>💳 تسجيل دفعة</button>" : "") +
+        "<button class='BT bt-gr bt-sm' style='flex:1' onclick='swMT(document.querySelector(\".MT[data-tp=\\\"tp-payments\\\"]\"))'>💳 الفواتير والدفعات وكشف الحساب</button>" +
       "</div>";
   }
   document.getElementById("mIco").textContent = c.name.charAt(0);
@@ -4485,11 +4483,7 @@ function openCF(id) {
       mkFinTag("✅","مدفوع",fmtN(c.adv||0)+" ر.س","var(--gr)") +
       mkFinTag("⏳","متبقي",fmtN(remAmt)+" ر.س","var(--rd)") +
     "</div>" +
-    "<div style='display:flex;gap:8px;margin-top:14px;flex-wrap:wrap'>" +
-      "<button class='BT bt-gh bt-sm' style='flex:1' onclick='printStatement(\""+c.id+"\")'>📄 كشف حساب</button>" +
-      "<button class='BT bt-bl bt-sm' style='flex:1' onclick='printInvoice(\""+c.id+"\")'>🧾 الفاتورة (مبدئية / معتمدة)</button>" +
-    "</div>" +
-    (!invReady ? "<div class='NT nt-r' style='margin-top:8px;font-size:11px'>⚠️ الفاتورة الضريبية الرسمية تصدر بعد اكتمال السداد واعتماد تقرير الفحص.</div>" : "");
+    "<div class='NT nt-b' style='margin-top:12px;font-size:11px'>💡 الفواتير والسندات وكشف الحساب في تبويب «الدفعات».</div>";
   // Commission
   var collected = totalPaid(c);
   var returned  = totalReturned(c);
@@ -8767,6 +8761,18 @@ function printDisbursement(cid, retId) {
 
 // ── 2) كشف حساب العميل (Account Statement) ──
 // ── دالة بوابة الفاتورة (تحدد نوع الفاتورة وتطبعها) ──
+function saveClientVat(cid, vat){
+  var c = CL.find(function(x){ return x.id===cid; }); if(!c) return;
+  c.vn = (vat||"").replace(/[^0-9]/g,"");
+  sCl(CL);
+  if (FB_READY && CU && CU._fbAuth) fbSaveClient(c);
+}
+function saveInvoiceNo(cid, no){
+  var c = CL.find(function(x){ return x.id===cid; }); if(!c) return;
+  c.invoiceNo = (no||"").trim();
+  sCl(CL);
+  if (FB_READY && CU && CU._fbAuth) fbSaveClient(c);
+}
 function printInvoice(cid) {
   var c = CL.find(function(x){ return x.id===cid; }); if (!c) return;
   var c2   = calcComm(c.val);
@@ -8904,7 +8910,7 @@ function getInspectionDesc(itype) {
 function printTaxInvoice(cid, c, c2, paid, pst, isDeferred) {
   var info = getCompanyInfo();
   var rem  = Math.max(c2.tot - paid, 0);
-  var invoiceNo = "INV-" + String(c.id).replace(/[^0-9]/g,"").slice(-6).padStart(6,"0") + "/" + new Date().getFullYear();
+  var invoiceNo = c.invoiceNo || ("INV-" + String(c.id).replace(/[^0-9]/g,"").slice(-6).padStart(6,"0") + "/" + new Date().getFullYear());
   var isEn = LG === "en";
   var cur  = isEn ? "SAR" : "ر.س";
   var isCorp = c.type === "corp";
@@ -8951,7 +8957,7 @@ function printTaxInvoice(cid, c, c2, paid, pst, isDeferred) {
   var zatcaFull = zatcaPayload(info, c2.tot, c2.vat, c.createdAt||new Date().toISOString());
   var vipChip = "";
 
-  var html = premiumHead(info,{ ar:"\u0641\u0627\u062a\u0648\u0631\u0629", en:"Invoice", no: invoiceNo, date: invDate, icon:"\ud83e\uddfe", zatca:true }) +
+  var html = premiumHead(info,{ ar:"\u0641\u0627\u062a\u0648\u0631\u0629", en:"Invoice", no: invoiceNo, date: invDate, icon:"\ud83e\uddfe", zatca:true, cid: cid }) +
     "<div class='np' style='margin:-4mm 0 12px;gap:8px'>" +
       "<span id='chkOfficial' class='chk' onclick=\"tglDoc()\"><span class='cbx'></span> "+(isEn?"With QR":"بالباركود")+"</span>" +
       "<span id='chkVat' class='chk on' onclick=\"tglVat()\"><span class='cbx'></span> "+(isEn?"VAT 15%":"ضريبة 15%")+"</span>" +
@@ -8964,7 +8970,7 @@ function printTaxInvoice(cid, c, c2, paid, pst, isDeferred) {
     "<div class='pgrid-wrap'><table class='pg compact'>" +
       "<tr><td class='lbl'>"+"الاسم / Name"+"</td><td><b>"+c.name+"</b></td><td class='lbl'>"+"الجوال / Mobile"+"</td><td style='direction:ltr;text-align:right'>"+(c.phone||"—")+"</td></tr>" +
       "<tr><td class='lbl'>استشاري المبيعات / Sales Consultant</td><td>"+(c.rep||"—")+"</td><td class='lbl'>ملاحظات / Notes</td><td contenteditable='true' style='min-width:70px'>&nbsp;</td></tr>" +
-      "<tr><td class='lbl'>"+"الرقم الضريبي / VAT No."+"</td><td style='direction:ltr;text-align:right'>"+(c.vn||"—")+"</td><td class='lbl'>"+"تاريخ الفاتورة / Date"+"</td><td>"+invDate+"</td></tr>" +
+      "<tr><td class='lbl'>"+"الرقم الضريبي / VAT No."+"</td><td contenteditable='true' onblur='if(window.opener&&window.opener.saveClientVat)window.opener.saveClientVat(&quot;"+cid+"&quot;,this.textContent)' title='اضغط لإضافة/تعديل الرقم الضريبي — يُحفظ تلقائياً' style='direction:ltr;text-align:right;outline:1px dashed #cbb;border-radius:3px;padding:1px 4px'>"+(c.vn||"")+"</td><td class='lbl'>"+"تاريخ الفاتورة / Date"+"</td><td>"+invDate+"</td></tr>" +
       "<tr><td class='lbl'>العنوان / Address</td><td colspan='3'>"+(c.addr||c.city||"—")+"</td></tr>" +
     "</table></div>" +
     "<div class='pgrid-wrap'><table class='pg' id='invItems'>" +
@@ -8993,7 +8999,7 @@ function printTaxInvoice(cid, c, c2, paid, pst, isDeferred) {
       "<div><div class='ln'></div>"+coName(info)+"<br><span style='font-size:9px;color:#8a7a4a'>"+(isEn?"Authorized Signatory":"\u0627\u0644\u0645\u0641\u0648\u0651\u0636 \u0628\u0627\u0644\u062a\u0648\u0642\u064a\u0639")+"</span></div>" +
       "<div><div class='ln'></div>"+(isEn?"Company Stamp":"\u062e\u062a\u0645 \u0627\u0644\u0634\u0631\u0643\u0629")+"</div>" +
     "</div>" +
-    "<script>var CUR='"+cur+"';var _NET="+c2.net+",_VAT="+c2.vat+",_DISC=0,_PAID="+paid+";var VS_W='"+(isEn?'(incl. VAT)':'(شامل الضريبة)')+"',VS_N='"+(isEn?'(excl. VAT)':'(غير شامل الضريبة)')+"';var PT_CASH='"+(isEn?'CASH':'نقدية')+"',PT_CREDIT='"+(isEn?'CREDIT':'آجلة')+"';var _doc='final',_vat='with',_pay='"+(rem>0?'credit':'cash')+"';var ZN="+JSON.stringify(coName(info))+",ZV='"+(info.vat||'')+"',ZT='"+(c.createdAt||new Date().toISOString())+"';function fmtx(n){n=parseFloat(n)||0;return n.toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2});}function _st(id,v){var el=document.getElementById(id);if(el)el.textContent=fmtx(v);}function ztlv(t,v){v=String(v);var b=unescape(encodeURIComponent(v));return String.fromCharCode(t)+String.fromCharCode(b.length)+b;}function zpay(tot,vat){try{return btoa(ztlv(1,ZN)+ztlv(2,ZV)+ztlv(3,ZT)+ztlv(4,(parseFloat(tot)||0).toFixed(2))+ztlv(5,(parseFloat(vat)||0).toFixed(2)));}catch(e){return '';}}function _cl(id,on){var el=document.getElementById(id);if(el)el.className=on?'chk on':'chk';}function num(el){if(!el)return 0;return parseFloat((el.textContent||'').replace(/[^0-9.]/g,''))||0;}function addInvRow(){var tb=document.querySelector('#invItems tbody');if(!tb)return;var tr=document.createElement('tr');tr.className='itemrow';var defs=[['rn','',false,'center'],['','',true,'right'],['','',true,'right'],['qcell','1',true,'center'],['pcell','0',true,'right'],['vcell vatcol','0.00',false,'right'],['tcell','0.00',false,'right']];defs.forEach(function(d){var td=document.createElement('td');if(d[0])td.className=d[0];if(d[0]==='rn'){var s1=document.createElement('span');s1.className='rnum';var s2=document.createElement('span');s2.className='delx';s2.textContent='✕';s2.setAttribute('onclick','delRow(this)');td.appendChild(s1);td.appendChild(document.createTextNode(' '));td.appendChild(s2);}else{td.textContent=d[1];}if(d[2]){td.setAttribute('contenteditable','true');td.setAttribute('oninput','recalcRows()');}td.style.textAlign=d[3];if(d[3]==='right')td.style.direction='ltr';tr.appendChild(td);});tb.appendChild(tr);recalcRows();}function delRow(el){var tr=el.closest('tr');if(document.querySelectorAll('.itemrow').length>1){tr.parentNode.removeChild(tr);recalcRows();}}function recalcRows(){var wv=(_vat==='with');var sn=0;document.querySelectorAll('.itemrow').forEach(function(r,i){var rn=r.querySelector('.rnum');if(rn)rn.textContent=String(i+1);var q=num(r.querySelector('.qcell')),pr=num(r.querySelector('.pcell'));var net=Math.round(q*pr*100)/100,vat=Math.round(net*0.15*100)/100;var vc=r.querySelector('.vcell');if(vc)vc.textContent=fmtx(vat);var tc=r.querySelector('.tcell');if(tc)tc.textContent=fmtx(net+(wv?vat:0));sn+=net;});_NET=Math.round(sn*100)/100;_VAT=Math.round(sn*0.15*100)/100;updateTotals();}function updateTotals(){var wv=(_vat==='with'),df=(_doc==='draft');var dEl=document.getElementById('sDisc');_DISC=dEl?num(dEl):0;if(_DISC>_NET)_DISC=_NET;var taxable=Math.round((_NET-_DISC)*100)/100;var vat=wv?Math.round(taxable*0.15*100)/100:0;var tot=Math.round((taxable+vat)*100)/100;var paid=(_pay==='cash')?tot:_PAID;var rem=Math.max(Math.round((tot-paid)*100)/100,0);document.querySelectorAll('.vatcol,.vatrow').forEach(function(x){x.style.display=wv?'':'none';});_st('sNet',_NET);_st('sVat',vat);_st('sTot',tot);_st('sPaid',paid);_st('sRem',rem);var dp=document.getElementById('sDiscPct');if(dp)dp.textContent='('+(_NET>0?Math.round(_DISC/_NET*100):0)+'%)';var pct=tot>0?Math.round(paid/tot*100):0;var pp=document.getElementById('payPct');if(pp)pp.textContent=pct+'%';var rp=document.getElementById('remPct');if(rp)rp.textContent=(100-pct)+'%';var pf=document.getElementById('pctFill');if(pf)pf.style.width=pct+'%';var pw=document.getElementById('pctWrap');if(pw)pw.style.display=rem>0?'block':'none';var ptl=document.getElementById('payTypeLbl');if(ptl)ptl.textContent=(_pay==='cash')?PT_CASH:PT_CREDIT;var vs=document.getElementById('vatSuffix');if(vs)vs.textContent=wv?VS_W:VS_N;var dc=document.getElementById('docTypeLbl');if(dc)dc.textContent=df?dc.dataset.d:dc.dataset.f;var dn=document.getElementById('draftNotice');if(dn)dn.style.display=df?'block':'none';var qw=document.getElementById('qrWrap');if(qw)qw.style.display=df?'none':'flex';_cl('chkOfficial',!df);_cl('chkVat',wv);_cl('chkCash',_pay==='cash');if(!df){var q0=document.getElementById('pQR');if(q0){var nz=zpay(tot,vat);if(q0.dataset.z!==nz){q0.dataset.z=nz;q0.dataset.done='';q0.innerHTML='';}}genQR();}}function genQR(a){a=a||0;var q=document.getElementById('pQR');if(!q||!q.dataset.z||q.dataset.done)return;if(typeof QRCode==='undefined'||!window.QRCode){if(a<50)setTimeout(function(){genQR(a+1);},150);return;}try{q.innerHTML='';new QRCode(q,{text:q.dataset.z,width:96,height:96,correctLevel:QRCode.CorrectLevel.M});q.dataset.done='1';}catch(e){}}function tglDoc(){_doc=(_doc==='final')?'draft':'final';updateTotals();}function tglVat(){_vat=(_vat==='with')?'without':'with';recalcRows();}function tglCash(){_pay=(_pay==='cash')?'credit':'cash';updateTotals();}setTimeout(function(){recalcRows();genQR();},300);window.addEventListener('load',function(){genQR();});</scr" + "ipt>" +
+    "<script>var CUR='"+cur+"';window.INV_TYPES="+JSON.stringify(loadInspTypes())+";window.INV_DESC="+JSON.stringify((function(){var m={};loadInspTypes().forEach(function(t){m[t]=getInspectionDesc(t);});return m;})())+";var _NET="+c2.net+",_VAT="+c2.vat+",_DISC=0,_PAID="+paid+";var VS_W='"+(isEn?'(incl. VAT)':'(شامل الضريبة)')+"',VS_N='"+(isEn?'(excl. VAT)':'(غير شامل الضريبة)')+"';var PT_CASH='"+(isEn?'CASH':'نقدية')+"',PT_CREDIT='"+(isEn?'CREDIT':'آجلة')+"';var _doc='final',_vat='with',_pay='"+(rem>0?'credit':'cash')+"';var ZN="+JSON.stringify(coName(info))+",ZV='"+(info.vat||'')+"',ZT='"+(c.createdAt||new Date().toISOString())+"';function fmtx(n){n=parseFloat(n)||0;return n.toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2});}function _st(id,v){var el=document.getElementById(id);if(el)el.textContent=fmtx(v);}function ztlv(t,v){v=String(v);var b=unescape(encodeURIComponent(v));return String.fromCharCode(t)+String.fromCharCode(b.length)+b;}function zpay(tot,vat){try{return btoa(ztlv(1,ZN)+ztlv(2,ZV)+ztlv(3,ZT)+ztlv(4,(parseFloat(tot)||0).toFixed(2))+ztlv(5,(parseFloat(vat)||0).toFixed(2)));}catch(e){return '';}}function _cl(id,on){var el=document.getElementById(id);if(el)el.className=on?'chk on':'chk';}function num(el){if(!el)return 0;return parseFloat((el.textContent||'').replace(/[^0-9.]/g,''))||0;}function addInvRow(){var tb=document.querySelector('#invItems tbody');if(!tb)return;var tr=document.createElement('tr');tr.className='itemrow';var td0=document.createElement('td');td0.className='rn';td0.style.textAlign='center';var s1=document.createElement('span');s1.className='rnum';var s2=document.createElement('span');s2.className='delx';s2.textContent='✕';s2.setAttribute('onclick','delRow(this)');td0.appendChild(s1);td0.appendChild(document.createTextNode(' '));td0.appendChild(s2);tr.appendChild(td0);var td1=document.createElement('td');var sel=document.createElement('select');sel.style.cssText='width:100%;border:1px solid #d8d0b8;border-radius:6px;padding:3px;font:inherit;background:#fff';var o0=document.createElement('option');o0.value='';o0.textContent='- اختر صنف الفحص -';sel.appendChild(o0);(window.INV_TYPES||[]).forEach(function(t){var o=document.createElement('option');o.value=t;o.textContent=t;sel.appendChild(o);});td1.appendChild(sel);tr.appendChild(td1);var td2=document.createElement('td');td2.setAttribute('contenteditable','true');td2.style.textAlign='right';tr.appendChild(td2);var td3=document.createElement('td');td3.className='qcell';td3.setAttribute('contenteditable','true');td3.setAttribute('oninput','recalcRows()');td3.style.textAlign='center';td3.textContent='1';tr.appendChild(td3);var td4=document.createElement('td');td4.className='pcell';td4.setAttribute('contenteditable','true');td4.setAttribute('oninput','recalcRows()');td4.style.textAlign='right';td4.style.direction='ltr';td4.textContent='0';tr.appendChild(td4);var td5=document.createElement('td');td5.className='vcell vatcol';td5.style.textAlign='right';td5.style.direction='ltr';td5.textContent='0.00';tr.appendChild(td5);var td6=document.createElement('td');td6.className='tcell';td6.style.textAlign='right';td6.style.direction='ltr';td6.textContent='0.00';tr.appendChild(td6);sel.addEventListener('change',function(){td2.textContent=(window.INV_DESC&&window.INV_DESC[sel.value])||'';recalcRows();});tb.appendChild(tr);recalcRows();}function delRow(el){var tr=el.closest('tr');if(document.querySelectorAll('.itemrow').length>1){tr.parentNode.removeChild(tr);recalcRows();}}function recalcRows(){var wv=(_vat==='with');var sn=0;document.querySelectorAll('.itemrow').forEach(function(r,i){var rn=r.querySelector('.rnum');if(rn)rn.textContent=String(i+1);var q=num(r.querySelector('.qcell')),pr=num(r.querySelector('.pcell'));var net=Math.round(q*pr*100)/100,vat=Math.round(net*0.15*100)/100;var vc=r.querySelector('.vcell');if(vc)vc.textContent=fmtx(vat);var tc=r.querySelector('.tcell');if(tc)tc.textContent=fmtx(net+(wv?vat:0));sn+=net;});_NET=Math.round(sn*100)/100;_VAT=Math.round(sn*0.15*100)/100;updateTotals();}function updateTotals(){var wv=(_vat==='with'),df=(_doc==='draft');var dEl=document.getElementById('sDisc');_DISC=dEl?num(dEl):0;if(_DISC>_NET)_DISC=_NET;var taxable=Math.round((_NET-_DISC)*100)/100;var vat=wv?Math.round(taxable*0.15*100)/100:0;var tot=Math.round((taxable+vat)*100)/100;var paid=(_pay==='cash')?tot:_PAID;var rem=Math.max(Math.round((tot-paid)*100)/100,0);document.querySelectorAll('.vatcol,.vatrow').forEach(function(x){x.style.display=wv?'':'none';});_st('sNet',_NET);_st('sVat',vat);_st('sTot',tot);_st('sPaid',paid);_st('sRem',rem);var dp=document.getElementById('sDiscPct');if(dp)dp.textContent='('+(_NET>0?Math.round(_DISC/_NET*100):0)+'%)';var pct=tot>0?Math.round(paid/tot*100):0;var pp=document.getElementById('payPct');if(pp)pp.textContent=pct+'%';var rp=document.getElementById('remPct');if(rp)rp.textContent=(100-pct)+'%';var pf=document.getElementById('pctFill');if(pf)pf.style.width=pct+'%';var pw=document.getElementById('pctWrap');if(pw)pw.style.display=rem>0?'block':'none';var ptl=document.getElementById('payTypeLbl');if(ptl)ptl.textContent=(_pay==='cash')?PT_CASH:PT_CREDIT;var vs=document.getElementById('vatSuffix');if(vs)vs.textContent=wv?VS_W:VS_N;var dc=document.getElementById('docTypeLbl');if(dc)dc.textContent=df?dc.dataset.d:dc.dataset.f;var dn=document.getElementById('draftNotice');if(dn)dn.style.display=df?'block':'none';var qw=document.getElementById('qrWrap');if(qw)qw.style.display=df?'none':'flex';_cl('chkOfficial',!df);_cl('chkVat',wv);_cl('chkCash',_pay==='cash');if(!df){var q0=document.getElementById('pQR');if(q0){var nz=zpay(tot,vat);if(q0.dataset.z!==nz){q0.dataset.z=nz;q0.dataset.done='';q0.innerHTML='';}}genQR();}}function genQR(a){a=a||0;var q=document.getElementById('pQR');if(!q||!q.dataset.z||q.dataset.done)return;if(typeof QRCode==='undefined'||!window.QRCode){if(a<50)setTimeout(function(){genQR(a+1);},150);return;}try{q.innerHTML='';new QRCode(q,{text:q.dataset.z,width:96,height:96,correctLevel:QRCode.CorrectLevel.M});q.dataset.done='1';}catch(e){}}function tglDoc(){_doc=(_doc==='final')?'draft':'final';updateTotals();}function tglVat(){_vat=(_vat==='with')?'without':'with';recalcRows();}function tglCash(){_pay=(_pay==='cash')?'credit':'cash';updateTotals();}setTimeout(function(){recalcRows();genQR();},300);window.addEventListener('load',function(){genQR();});</scr" + "ipt>" +
     premiumFoot(info,{ stamp:(isEn?"Certified Invoice":"\u0641\u0627\u062a\u0648\u0631\u0629 \u0645\u0648\u062b\u0651\u0642\u0629"), noAutoPrint:true });
 
   openPrintDoc(html);
@@ -9106,7 +9112,7 @@ function premiumHead(info, o) {
       "<div class='phero-mid'>" +
         "<img class='phero-logo' src='"+info.logo+"'>" +
         "<div class='phero-doc-type'>"+(o.icon||"")+" "+(o.ar||"")+(o.en?" / "+o.en:"")+"</div>" +
-        "<div class='phero-doc-no'>"+(o.no||"")+"</div>" +
+        "<div class='phero-doc-no'"+(o.cid?" contenteditable='true' onblur='if(window.opener&&window.opener.saveInvoiceNo)window.opener.saveInvoiceNo(\""+o.cid+"\",this.textContent)' title='\u0627\u0636\u063a\u0637 \u0644\u062a\u0639\u062f\u064a\u0644 \u0627\u0644\u0631\u0642\u0645 \u2014 \u064a\u064f\u062d\u0641\u0638 \u062a\u0644\u0642\u0627\u0626\u064a\u0627\u064b' style='outline:1px dashed rgba(255,255,255,.35);padding:1px 5px;border-radius:4px'":"")+">"+(o.no||"")+"</div>" +
         "<div class='phero-doc-date'>📅 "+(o.date||"")+"</div>" +
       "</div>" +
       "<div class='phero-side en'>" +
@@ -9500,22 +9506,22 @@ function renderPayTab(c) {
 
   // Header cards
   var html =
-    "<div class='FR fr3' style='margin-bottom:16px'>" +
-      "<div class='FC fc-b'><div class='FV'>"+fmtN(tot)+"</div><div class='F2'>الإجمالي + ضريبة 15%</div></div>" +
-      "<div class='FC fc-g'><div class='FV'>"+fmtN(paid)+"</div><div class='F2'>إجمالي المدفوع</div></div>" +
-      "<div class='FC "+(rem>0?"fc-r":"fc-g")+"'><div class='FV'>"+fmtN(rem)+"</div><div class='F2'>"+(rem>0?"المتبقي":"مُسدَّد بالكامل ✅")+"</div></div>" +
+    "<div class='FR fr3' style='margin-bottom:10px'>" +
+      "<div class='FC fc-b'><div class='FV' style='font-size:16px'>"+fmtN(tot)+"</div><div class='F2'>الإجمالي + ضريبة 15%</div></div>" +
+      "<div class='FC fc-g'><div class='FV' style='font-size:16px'>"+fmtN(paid)+"</div><div class='F2'>إجمالي المدفوع</div></div>" +
+      "<div class='FC "+(rem>0?"fc-r":"fc-g")+"'><div class='FV' style='font-size:16px'>"+fmtN(rem)+"</div><div class='F2'>"+(rem>0?"المتبقي":"مُسدَّد بالكامل ✅")+"</div></div>" +
     "</div>" +
     // Progress
-    "<div style='margin-bottom:18px'>" +
-      "<div style='display:flex;justify-content:space-between;font-size:11px;font-weight:700;margin-bottom:6px'>" +
+    "<div style='margin-bottom:12px'>" +
+      "<div style='display:flex;justify-content:space-between;font-size:10.5px;font-weight:700;margin-bottom:4px'>" +
         "<span>مؤشر التحصيل</span>"+pstBadge(pst) +
       "</div>" +
-      "<div class='PAY-SUMMARY-BAR' style='height:22px'>" +
+      "<div class='PAY-SUMMARY-BAR' style='height:12px'>" +
         "<div style='height:100%;width:"+advPct+"%;background:linear-gradient(90deg,"+
           (advPct>=100?"var(--gr),#2ecc71":advPct>60?"#f0c000,var(--gr)":"var(--or),#f0c000")+
           ");transition:.8s;border-radius:9px'></div>" +
       "</div>" +
-      "<div style='display:flex;justify-content:space-between;font-size:10px;font-weight:700;margin-top:5px'>" +
+      "<div style='display:flex;justify-content:space-between;font-size:9.5px;font-weight:700;margin-top:4px'>" +
         "<span style='color:var(--gr)'>✅ "+fmtN(paid)+" ر.س ("+advPct+"%)</span>" +
         "<span style='color:var(--rd)'>⏳ "+fmtN(rem)+" ر.س ("+(100-advPct)+"%)</span>" +
       "</div>" +
