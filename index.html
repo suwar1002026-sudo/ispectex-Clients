@@ -6099,6 +6099,18 @@ function resetPass(id) {
   addA("إعادة تعيين كلمة المرور",u.name,"user");
   toast("🔑 تم تغيير كلمة مرور «"+u.name+"»","s");
 }
+function hardReset() {
+  if (!window.confirm("\u26a0\ufe0f \u0633\u064a\u064f\u0645\u0633\u062d \u0643\u0644 \u0628\u064a\u0627\u0646\u0627\u062a \u0647\u0630\u0627 \u0627\u0644\u062c\u0647\u0627\u0632 (\u0627\u0644\u0639\u0645\u0644\u0627\u0621 \u0627\u0644\u0645\u062d\u0644\u064a\u0648\u0646\u060c \u0627\u0644\u0625\u0639\u062f\u0627\u062f\u0627\u062a\u2026) \u0648\u0644\u0627 \u064a\u0645\u0643\u0646 \u0627\u0644\u062a\u0631\u0627\u062c\u0639.\n\n\u0645\u062a\u0627\u0628\u0639\u0629\u061f")) return;
+  try {
+    var keys = [];
+    for (var i = 0; i < localStorage.length; i++) { var k = localStorage.key(i); if (k && k.indexOf("irx_") === 0) keys.push(k); }
+    keys.forEach(function(k){ localStorage.removeItem(k); });
+    try { sessionStorage.clear(); } catch(e){}
+    if (typeof FB_AUTH !== "undefined" && FB_AUTH && FB_AUTH.currentUser) { FB_AUTH.signOut().catch(function(){}); }
+  } catch(e) {}
+  alert("\u2705 \u062a\u0645 \u0645\u0633\u062d \u0628\u064a\u0627\u0646\u0627\u062a \u0647\u0630\u0627 \u0627\u0644\u062c\u0647\u0627\u0632. \u0633\u064a\u064f\u0639\u0627\u062f \u062a\u062d\u0645\u064a\u0644 \u0627\u0644\u0646\u0638\u0627\u0645.");
+  location.reload();
+}
 function resetAllUsers() {
   if (!confirm("⚠️ هذا سيمسح جميع المستخدمين ويُبقي على حساب Admin فقط!\n\nهل أنت متأكد؟")) return;
   var admin = US.find(function(u){ return u.role==="admin"; });
