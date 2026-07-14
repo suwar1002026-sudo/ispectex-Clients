@@ -672,7 +672,11 @@ tr:hover td{background:#f8fbff}
   <div class="lc-form">
     <div style="text-align:center;margin-bottom:8px"><div style="width:54px;height:54px;border-radius:14px;margin:0 auto 12px;background:linear-gradient(135deg,#0b1a2e,#102342);display:flex;align-items:center;justify-content:center;font-size:24px">🔐</div></div>
     <div style="font-size:20px;font-weight:900;color:#0b1a2e;text-align:center;margin-bottom:4px">تسجيل الدخول</div>
-    <div style="font-size:11px;color:#8a94a6;text-align:center;margin-bottom:22px">أدخل بياناتك للوصول إلى النظام</div>
+    <div style="font-size:11px;color:#8a94a6;text-align:center;margin-bottom:14px">أدخل بياناتك للوصول إلى النظام</div>
+    <div style="text-align:center;margin:0 0 20px;padding:13px 14px;border-radius:12px;background:linear-gradient(135deg,#f7f3e8,#fbf8ef);border:1px solid #e6d9a8">
+      <div style="font-family:'Traditional Arabic','Amiri',serif;font-size:14.5px;font-weight:700;color:#8a6d1c;line-height:1.9;direction:rtl">﴿ وَقُلِ اعْمَلُوا فَسَيَرَى اللَّهُ عَمَلَكُمْ وَرَسُولُهُ وَالْمُؤْمِنُونَ ۖ وَسَتُرَدُّونَ إِلَىٰ عَالِمِ الْغَيْبِ وَالشَّهَادَةِ فَيُنَبِّئُكُم بِمَا كُنتُمْ تَعْمَلُونَ ﴾</div>
+      <div style="font-size:10px;color:#b09540;margin-top:7px;font-weight:600">سورة التوبة — الآية ١٠٥</div>
+    </div>
     <div class="lf"><label>اسم المستخدم</label><input type="text" id="lu" placeholder="أدخل اسم المستخدم" autocomplete="username"></div>
     <div class="lf"><label>كلمة المرور</label><input type="password" id="lp" placeholder="••••••••" autocomplete="current-password" onkeydown="if(event.key==='Enter')doLogin()"></div>
     <button class="btn-ln" onclick="doLogin()">دخول للنظام</button>
@@ -2936,8 +2940,8 @@ var PM = {
   admgr:    { va:1, ap:1, del:1, add:1, fin:0, usr:0, aud:1, rpt:1, bak:0, arc:1, insp:0 },
   // salesmgr — العملاء + التقارير + الفحص والاعتماد فقط
   salesmgr: { va:1, ap:1, del:0, add:0, fin:0, usr:0, aud:0, rpt:1, bak:0, arc:0, insp:1 },
-  // rep — عملاءه فقط + إضافة/تعديل/حذف + عمولته + رفع
-  rep:      { va:1, ap:0, del:1, add:1, fin:0, usr:0, aud:0, rpt:0, bak:0, arc:0, insp:0 },
+  // rep — عملاءه فقط + إضافة/تعديل + أرشفة (بدل الحذف) + إصدار فاتورة/سند/دفعة/مرتجع + عمولته
+  rep:      { va:1, ap:0, del:0, add:1, fin:0, usr:0, aud:0, rpt:0, bak:0, arc:1, insp:0 },
   // eng — مهندس فحص: يرى كل العملاء، يُنهي مراحل الفحص ويعتمد تقارير الفحص لأي عميل
   eng:      { va:1, ap:1, del:0, add:0, fin:0, usr:0, aud:0, rpt:0, bak:0, arc:0, insp:1 }
 };
@@ -3827,7 +3831,7 @@ function runGlobalSearch() {
 
   var items = [];
   // العملاء
-  var clients = (CU.role==="rep") ? CL.filter(function(c){ return c.repId===CU.id; }) : CL;
+  var clients = (CU.role==="rep" && !CU._fbAuth) ? CL.filter(function(c){ return c.repId===CU.id; }) : CL;
   clients.forEach(function(c){
     var hay = [c.name,c.id,c.phone,c.city,c.email].join(" ").toLowerCase();
     if (hay.indexOf(q)>=0) items.push(gsRow("👤", c.name, c.id+" · "+(c.phone||"–")+" · "+(c.city||"–"), "clients", c.id));
@@ -4075,7 +4079,7 @@ function toggleNotif() {
 
 // ══ DASHBOARD ══
 function rDash() {
-  var b = CU.role==="rep" ? CL.filter(function(c){ return c.repId===CU.id && !c.archived; }) : CL.filter(function(c){ return !c.archived; });
+  var b = (CU.role==="rep" && !CU._fbAuth) ? CL.filter(function(c){ return c.repId===CU.id && !c.archived; }) : CL.filter(function(c){ return !c.archived; });
   var tv  = b.reduce(function(s,c){ return s+(parseFloat(c.val)||0); }, 0);
   var tc  = b.reduce(function(s,c){ return s+calcComm(c.val).comm; }, 0);
   var tvat= tv * loadRates().vat;
@@ -4169,7 +4173,7 @@ function auditIco(a){var m={"تسجيل دخول ناجح":"🔑","تسجيل خ
 
 // ══ CLIENTS PAGE ══
 function renderCl() {
-  var b = CU.role==="rep" ? CL.filter(function(c){ return c.repId===CU.id; }) : CL;
+  var b = (CU.role==="rep" && !CU._fbAuth) ? CL.filter(function(c){ return c.repId===CU.id; }) : CL;
   var active = b.filter(function(c){ return !c.archived; });
   var tv = active.reduce(function(s,c){ return s+(parseFloat(c.val)||0); }, 0);
   var cs = document.getElementById("clStats");
@@ -8930,14 +8934,18 @@ function printTaxInvoice(cid, c, c2, paid, pst, isDeferred) {
   var perVat = c2.vat / rawTypes.length;
   var perTot = c2.tot / rawTypes.length;
 
-  var itemsRows =
-    "<tr class='itemrow'><td class='rn' style='text-align:center;color:#8a7a4a'><span class='rnum'>1</span> <span class='delx' onclick='delRow(this)'>✕</span></td>" +
-    "<td contenteditable='true'></td>" +
-    "<td contenteditable='true'></td>" +
-    "<td class='qcell' contenteditable='true' oninput='recalcRows()' style='text-align:center'>1</td>" +
-    "<td class='pcell' contenteditable='true' oninput='recalcRows()' style='direction:ltr;text-align:right'>0</td>" +
-    "<td class='vcell vatcol' style='direction:ltr;text-align:right;color:#8a6d1c'>0.00</td>" +
-    "<td class='tcell' style='direction:ltr;text-align:right;font-weight:900'>0.00</td></tr>";
+  var itemsRows = rawTypes.map(function(tp, i) {
+    var pNet = Math.round(perNet*100)/100;
+    var pVat = Math.round(perVat*100)/100;
+    var pTot = Math.round(perTot*100)/100;
+    return "<tr class='itemrow'><td class='rn' style='text-align:center;color:#8a7a4a'><span class='rnum'>"+(i+1)+"</span> <span class='delx' onclick='delRow(this)'>✕</span></td>" +
+      "<td contenteditable='true'>"+tp+"</td>" +
+      "<td contenteditable='true'>"+getInspectionDesc(tp)+"</td>" +
+      "<td class='qcell' contenteditable='true' oninput='recalcRows()' style='text-align:center'>1</td>" +
+      "<td class='pcell' contenteditable='true' oninput='recalcRows()' style='direction:ltr;text-align:right'>"+pNet.toFixed(2)+"</td>" +
+      "<td class='vcell vatcol' style='direction:ltr;text-align:right;color:#8a6d1c'>"+pVat.toFixed(2)+"</td>" +
+      "<td class='tcell' style='direction:ltr;text-align:right;font-weight:900'>"+pTot.toFixed(2)+"</td></tr>";
+  }).join("");
 
   var invDate = fmtD(c.createdAt||new Date().toISOString());
   var zatcaFull = zatcaPayload(info, c2.tot, c2.vat, c.createdAt||new Date().toISOString());
@@ -9010,18 +9018,15 @@ function premiumCSS() {
   return "@page{size:A4;margin:0}*{box-sizing:border-box;margin:0;padding:0}" +
   "body{font-family:'Tahoma','Segoe UI',Arial,sans-serif;font-size:12px;color:#1a1a2e;direction:rtl;line-height:1.7}" +
   ".ppage{background:#fff;min-height:297mm;position:relative;padding-bottom:6mm}" +
-  ".phero{background:linear-gradient(135deg,#07111f 0%,#0b1a2e 55%,#102342 100%);padding:14px 12mm;display:flex;flex-direction:column;gap:10px}" +
-  ".phero-name{width:100%;text-align:center;color:#fff;font-size:19px;font-weight:900;letter-spacing:.5px;line-height:1.25;border-bottom:1px solid rgba(230,198,92,.35);padding-bottom:9px}" +
-  ".phero-name .en{display:block;font-size:10px;color:#e6c65c;letter-spacing:2px;margin-top:3px;font-weight:700}" +
-  ".phero-row{display:flex;align-items:center;justify-content:space-between;gap:12px;width:100%}" +
+  ".phero{background:linear-gradient(135deg,#07111f 0%,#0b1a2e 55%,#102342 100%);padding:16px 12mm;display:flex;align-items:center;justify-content:space-between;gap:12px}" +
   ".phero-side{flex:1;min-width:0}.phero-side.ar{text-align:right;direction:rtl}.phero-side.en{text-align:left;direction:ltr}" +
-  ".phero-cname{font-size:13px;font-weight:900;color:#fff;line-height:1.35}" +
+  ".phero-cname{font-size:12px;font-weight:900;color:#fff;line-height:1.3}" +
   ".phero-tag{font-size:7.5px;color:#c8a84b;letter-spacing:1.5px;margin-top:3px;font-weight:700}" +
   ".phero-info{font-size:8.5px;color:rgba(255,255,255,.62);margin-top:6px;line-height:2}" +
   ".phero-mid{text-align:center;flex-shrink:0;padding:0 4px}" +
   ".phero-logo{width:68px;height:68px;object-fit:contain;background:#fff;border-radius:12px;padding:5px;margin:0 auto;display:block}" +
   ".phero-doc-type{color:#e6c65c;font-size:9px;font-weight:900;letter-spacing:1px;margin-top:8px}" +
-  ".phero-doc-no{color:#fff;font-size:12.5px;font-weight:900;direction:ltr;margin-top:2px;white-space:nowrap;letter-spacing:.3px}" +
+  ".phero-doc-no{color:#fff;font-size:10.5px;font-weight:900;direction:ltr;margin-top:2px;white-space:nowrap;letter-spacing:.2px}" +
   ".phero-doc-date{color:rgba(255,255,255,.55);font-size:8px;margin-top:2px}" +
   ".pgold{height:5px;background:linear-gradient(90deg,#8a6d1c,#c8a84b,#f4e5a1,#c8a84b,#8a6d1c)}" +
   ".pbody{padding:11mm 16mm 4mm}" +
@@ -9093,9 +9098,8 @@ function premiumHead(info, o) {
     "<div class='ppage'>" +
     "<div class='pwm'><img src='"+info.logo+"'></div>" +
     "<div class='phero'>" +
-      "<div class='phero-name'>"+coName(info)+"<span class='en'>"+(info.nameEn||"Modern Building Standards Inspection Co.")+"</span></div>" +
-      "<div class='phero-row'>" +
       "<div class='phero-side ar'>" +
+        "<div class='phero-cname'>"+coName(info)+"</div>" +
         "<div class='phero-tag'>فحص هندسي معتمد</div>" +
         "<div class='phero-info'>"+(info.cr?"السجل التجاري: "+info.cr+"<br>":"")+(info.vat?"الرقم الضريبي: "+info.vat+"<br>":"")+(info.phone||"")+"</div>" +
       "</div>" +
@@ -9106,9 +9110,9 @@ function premiumHead(info, o) {
         "<div class='phero-doc-date'>📅 "+(o.date||"")+"</div>" +
       "</div>" +
       "<div class='phero-side en'>" +
+        "<div class='phero-cname'>"+(info.nameEn||"Modern Building Standards Inspection Co.")+"</div>" +
         "<div class='phero-tag'>ENGINEERING INSPECTION</div>" +
         "<div class='phero-info'>"+(info.cr?"CR: "+info.cr+"<br>":"")+(info.vat?"VAT: "+info.vat+"<br>":"")+(info.phone||"")+"</div>" +
-      "</div>" +
       "</div>" +
     "</div>" +
     "<div class='pgold'></div>" +
@@ -9143,18 +9147,15 @@ function premiumVoucher(info, o) {
     "@media print{.np{display:none}body{background:#fff;-webkit-print-color-adjust:exact;print-color-adjust:exact}}" +
     ".vpage{width:210mm;min-height:160mm;background:#fff;margin:0 auto;padding:16mm 15mm;box-shadow:0 4px 24px rgba(0,0,0,.12)}" +
     ".vframe{border:2px solid #1e4db7;border-radius:8px;padding:20px 22px 0;position:relative;min-height:128mm;overflow:hidden}" +
-    ".vhead{display:flex;flex-direction:column;gap:10px;border-bottom:2px solid #1e4db7;padding-bottom:12px}" +
-    ".vname{width:100%;text-align:center;font-size:16px;font-weight:900;color:#0b1a2e;line-height:1.25}" +
-    ".vname .en{display:block;font-size:8px;color:#1e4db7;letter-spacing:1.5px;margin-top:2px;font-weight:700}" +
-    ".vhead-row{display:flex;align-items:center;justify-content:space-between;gap:12px;width:100%}" +
+    ".vhead{display:flex;align-items:center;justify-content:space-between;gap:12px;border-bottom:2px solid #1e4db7;padding-bottom:14px}" +
     ".vco{flex:1;min-width:0}.vco-ar{text-align:right;direction:rtl}.vco-en{text-align:left;direction:ltr}" +
-    ".vco-n{font-size:13px;font-weight:900;color:#0b1a2e;line-height:1.35}" +
+    ".vco-n{font-size:11.5px;font-weight:900;color:#0b1a2e;line-height:1.3}" +
     ".vco-s{font-size:7.5px;color:#1e4db7;letter-spacing:1px;font-weight:700;margin-top:3px}" +
     ".vco-m{font-size:8px;color:#666;margin-top:4px;line-height:1.7}" +
     ".vmid{text-align:center;flex-shrink:0;padding:0 4px}.vlogo-c{width:56px;height:56px;object-fit:contain;margin:0 auto 6px;display:block}" +
     ".vt-ar{font-size:22px;font-weight:900;color:#0b1a2e;letter-spacing:3px}" +
     ".vt-en{font-size:11px;color:#333;letter-spacing:3px;border-bottom:2px solid #0b1a2e;padding-bottom:3px;display:inline-block;margin-top:3px}" +
-    ".vt-no{font-size:14px;font-weight:900;color:#d32f2f;direction:ltr;margin-top:8px;letter-spacing:.5px;white-space:nowrap}" +
+    ".vt-no{font-size:12px;font-weight:900;color:#d32f2f;direction:ltr;margin-top:8px;letter-spacing:.3px;white-space:nowrap}" +
     ".vlogo{width:82px;height:82px;flex-shrink:0;display:flex;align-items:center;justify-content:center}" +
     ".vlogo img{max-width:100%;max-height:100%;object-fit:contain}" +
     ".vamt-strip{display:flex;justify-content:space-between;align-items:center;margin:16px 0 6px}" +
@@ -9180,9 +9181,8 @@ function premiumVoucher(info, o) {
     "<script>function toggleDocLang(){var b=document.body;var cur=b.getAttribute('data-lang')||'both';var next=cur==='both'?'ar':(cur==='ar'?'en':'both');b.setAttribute('data-lang',next);document.querySelectorAll('.phero-side.ar,.vco-ar').forEach(function(x){x.style.display=(next==='en')?'none':'';});document.querySelectorAll('.phero-side.en,.vco-en').forEach(function(x){x.style.display=(next==='ar')?'none':'';});var t=document.getElementById('langLbl');if(t)t.textContent=(next==='both')?'عربي / EN':(next==='ar'?'عربي':'English');}</scr" + "ipt>" +
     "<div class='vpage'><div class='vframe'>" +
       "<div class='vhead'>" +
-      "<div class='vname'>" + coName(info) + "<span class='en'>" + (info.nameEn||"Modern Building Standards Inspection Co.") + "</span></div>" +
-      "<div class='vhead-row'>" +
       "<div class='vco vco-ar'>" +
+      "<div class='vco-n'>" + coName(info) + "</div>" +
       "<div class='vco-s'>فحص هندسي معتمد</div>" +
       "<div class='vco-m'>" + (info.cr?"س.ت: "+info.cr+"<br>":"") + (info.vat?"ر.ض: "+info.vat+"<br>":"") + (info.phone||"") + "</div>" +
       "</div>" +
@@ -9193,9 +9193,9 @@ function premiumVoucher(info, o) {
       "<div class='vt-no'>No. " + o.no + "</div>" +
       "</div>" +
       "<div class='vco vco-en'>" +
+      "<div class='vco-n'>" + (info.nameEn||"Modern Building Standards Inspection Co.") + "</div>" +
       "<div class='vco-s'>ENGINEERING INSPECTION</div>" +
       "<div class='vco-m'>" + (info.cr?"CR: "+info.cr+"<br>":"") + (info.vat?"VAT: "+info.vat+"<br>":"") + (info.phone||"") + "</div>" +
-      "</div>" +
       "</div>" +
       "</div>" +
       "<div class='vamt-strip'>" +
